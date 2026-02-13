@@ -9,31 +9,29 @@
   body {
     margin: 0;
     overflow: hidden;
-    background: linear-gradient(120deg, #1e3c72, #2a5298);
+    background: linear-gradient(-45deg, #0f2027, #203a43, #2c5364);
     background-size: 400% 400%;
-    animation: gradientMove 15s ease infinite;
+    animation: gradient 15s ease infinite;
   }
 
-  @keyframes gradientMove {
+  @keyframes gradient {
     0% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
     100% { background-position: 0% 50%; }
   }
 
-  canvas {
-    display: block;
-  }
+  canvas { display: block; }
 </style>
 </head>
 <body>
 
 <script type="module">
-import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
-import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
-import { RGBELoader } from 'https://unpkg.com/three@0.160.0/examples/jsm/loaders/RGBELoader.js';
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js';
+import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/controls/OrbitControls.js';
 
 const scene = new THREE.Scene();
 
+// Camera
 const camera = new THREE.PerspectiveCamera(
   75,
   window.innerWidth / window.innerHeight,
@@ -42,57 +40,58 @@ const camera = new THREE.PerspectiveCamera(
 );
 camera.position.set(0, 0, 3);
 
+// Renderer
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
-renderer.physicallyCorrectLights = true;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1;
+renderer.toneMappingExposure = 1.2;
 document.body.appendChild(renderer.domElement);
 
 // Controls
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
-controls.dampingFactor = 0.05;
 
-// HDR Environment
-new RGBELoader()
-  .setPath('https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/')
-  .load('studio_small_09_1k.hdr', function (texture) {
-    texture.mapping = THREE.EquirectangularReflectionMapping;
-    scene.environment = texture;
-  });
+// Lighting
+scene.add(new THREE.AmbientLight(0xffffff, 1));
 
-// Lighting fallback
-const light = new THREE.DirectionalLight(0xffffff, 2);
-light.position.set(5, 5, 5);
-scene.add(light);
+const directional = new THREE.DirectionalLight(0xffffff, 2);
+directional.position.set(5, 5, 5);
+scene.add(directional);
 
-// Load image texture
+// Create simple reflection environment (NO HDR download)
+const pmrem = new THREE.PMREMGenerator(renderer);
+const envScene = new THREE.Scene();
+envScene.background = new THREE.Color(0x8888ff);
+const envMap = pmrem.fromScene(envScene).texture;
+scene.environment = envMap;
+
+// Load Image
 const textureLoader = new THREE.TextureLoader();
-const faceTexture = textureLoader.load('./cube.jpg');
+const texture = textureLoader.load('./cube.jpg');
 
-// Glass-like material
-const glassMaterial = new THREE.MeshPhysicalMaterial({
-  map: faceTexture,
-  roughness: 0.1,
+// Glass material
+const material = new THREE.MeshPhysicalMaterial({
+  map: texture,
+  roughness: 0.05,
   metalness: 0,
-  transmission: 1, // glass transparency
-  thickness: 1.5,
+  transmission: 0.9,
+  thickness: 1,
   transparent: true,
   envMapIntensity: 1.5,
   clearcoat: 1,
   clearcoatRoughness: 0
 });
 
-const materials = Array(6).fill(glassMaterial);
+const materials = Array(6).fill(material);
 
+// Cube
 const geometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
 const cube = new THREE.Mesh(geometry, materials);
 scene.add(cube);
 
-// Resize
+// Resize fix
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
@@ -108,6 +107,5 @@ function animate() {
 animate();
 
 </script>
-
 </body>
 </html>
