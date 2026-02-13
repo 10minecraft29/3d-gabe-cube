@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Ultra Cinematic Cube</title>
+<title>Gabe Cube</title>
 <style>
 body{margin:0;overflow:hidden;background:black;}
 canvas{display:block;}
@@ -39,6 +39,7 @@ renderer.setSize(innerWidth,innerHeight);
 renderer.setPixelRatio(devicePixelRatio);
 renderer.shadowMap.enabled = true;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.85; // reduced brightness
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 
@@ -56,17 +57,10 @@ new RGBELoader().load('./studio.hdr',t=>{
  scene.background = t;
 });
 
-// Light source for god rays
-const sun = new THREE.Mesh(
- new THREE.SphereGeometry(0.2,32,32),
- new THREE.MeshBasicMaterial({color:0xffffff})
-);
-sun.position.set(5,5,0);
-scene.add(sun);
-
-// Custom glass shader
+// Texture
 const texture = new THREE.TextureLoader().load('./cube.jpg');
 
+// Balanced Glass Shader
 const glassMaterial = new THREE.ShaderMaterial({
  uniforms:{
   envMap:{value:null},
@@ -86,27 +80,23 @@ const glassMaterial = new THREE.ShaderMaterial({
  fragmentShader:`
  uniform sampler2D map;
  uniform samplerCube envMap;
- uniform float time;
  varying vec3 vNormal;
  varying vec3 vWorldPos;
 
  void main(){
   vec3 viewDir = normalize(cameraPosition - vWorldPos);
   vec3 refractDir = refract(viewDir,vNormal,1.0/1.5);
-
   vec3 reflectDir = reflect(viewDir,vNormal);
 
-  vec3 reflection = textureCube(envMap,reflectDir).rgb;
+  vec3 reflection = textureCube(envMap,reflectDir).rgb * 0.7;
   vec3 refraction = textureCube(envMap,refractDir).rgb;
 
-  vec3 base = texture2D(map,gl_FragCoord.xy/vec2(1920.0,1080.0)).rgb;
+  float fresnel = pow(1.0 - dot(viewDir,vNormal),2.0) * 0.6;
 
-  float fresnel = pow(1.0 - dot(viewDir,vNormal),3.0);
+  vec3 color = mix(refraction, reflection, fresnel);
 
-  vec3 color = mix(refraction,reflection,fresnel);
-
-  float edge = pow(1.0-abs(dot(viewDir,vNormal)),4.0);
-  color += edge*vec3(0.3,0.6,1.0);
+  float edge = pow(1.0-abs(dot(viewDir,vNormal)),3.0);
+  color += edge*vec3(0.05,0.1,0.2);
 
   gl_FragColor = vec4(color,0.9);
  }
@@ -120,8 +110,8 @@ const cube = new THREE.Mesh(
 );
 scene.add(cube);
 
-// GPU Particles
-const particleCount = 5000;
+// Particles (subtle)
+const particleCount = 3000;
 const positions = new Float32Array(particleCount*3);
 for(let i=0;i<particleCount;i++){
  positions[i*3+0]=(Math.random()-0.5)*10;
@@ -133,13 +123,11 @@ particleGeo.setAttribute('position',new THREE.BufferAttribute(positions,3));
 
 const particleMat = new THREE.PointsMaterial({
  color:0x88ccff,
- size:0.03,
+ size:0.02,
  transparent:true,
- opacity:0.7
+ opacity:0.4
 });
-
-const particles = new THREE.Points(particleGeo,particleMat);
-scene.add(particles);
+scene.add(new THREE.Points(particleGeo,particleMat));
 
 // Postprocessing
 const composer = new EffectComposer(renderer);
@@ -147,17 +135,17 @@ composer.addPass(new RenderPass(scene,camera));
 
 const bloom = new UnrealBloomPass(
  new THREE.Vector2(innerWidth,innerHeight),
- 1.5,0.4,0.85
+ 0.6, 0.2, 0.9 // softer bloom
 );
 composer.addPass(bloom);
 
-composer.addPass(new FilmPass(0.2,0.3,0,false));
+composer.addPass(new FilmPass(0.15,0.2,0,false));
 
-// Chromatic aberration shader
+// Subtle chromatic aberration
 const chromaShader = {
  uniforms:{
   tDiffuse:{value:null},
-  amount:{value:0.002}
+  amount:{value:0.0006}
  },
  vertexShader:`
  varying vec2 vUv;
@@ -181,7 +169,6 @@ const chromaShader = {
 };
 composer.addPass(new ShaderPass(chromaShader));
 
-// Resize
 addEventListener('resize',()=>{
  camera.aspect = innerWidth/innerHeight;
  camera.updateProjectionMatrix();
@@ -195,13 +182,407 @@ function animate(){
  requestAnimationFrame(animate);
  let t = clock.getElapsedTime();
 
- cube.position.y = Math.sin(t)*0.2;
- particles.rotation.y += 0.0005;
+ cube.position.y = Math.sin(t)*0.15;
 
- if(hdr) hdr.rotation = t*0.1;
+ if(hdr) hdr.rotation = t*0.05;
 
  glassMaterial.uniforms.envMap.value = scene.environment;
- glassMaterial.uniforms.time.value = t;
+
+ controls.update();
+ composer.render();
+}
+animate();
+
+</script>
+</body>
+</html>
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Ultra Cinematic Cube (Balanced)</title>
+<style>
+body{margin:0;overflow:hidden;background:black;}
+canvas{display:block;}
+</style>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+
+<body>
+<script type="module">
+
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { FilmPass } from 'three/addons/postprocessing/FilmPass.js';
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.1,100);
+camera.position.set(0,0,4);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(devicePixelRatio);
+renderer.shadowMap.enabled = true;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.85; // reduced brightness
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera,renderer.domElement);
+controls.enableDamping = true;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.5;
+
+// HDR
+let hdr;
+new RGBELoader().load('./studio.hdr',t=>{
+ t.mapping = THREE.EquirectangularReflectionMapping;
+ hdr = t;
+ scene.environment = t;
+ scene.background = t;
+});
+
+// Texture
+const texture = new THREE.TextureLoader().load('./cube.jpg');
+
+// Balanced Glass Shader
+const glassMaterial = new THREE.ShaderMaterial({
+ uniforms:{
+  envMap:{value:null},
+  map:{value:texture},
+  time:{value:0}
+ },
+ vertexShader:`
+ varying vec3 vNormal;
+ varying vec3 vWorldPos;
+ void main(){
+  vNormal = normalize(normalMatrix*normal);
+  vec4 worldPos = modelMatrix*vec4(position,1.0);
+  vWorldPos = worldPos.xyz;
+  gl_Position = projectionMatrix*viewMatrix*worldPos;
+ }
+ `,
+ fragmentShader:`
+ uniform sampler2D map;
+ uniform samplerCube envMap;
+ varying vec3 vNormal;
+ varying vec3 vWorldPos;
+
+ void main(){
+  vec3 viewDir = normalize(cameraPosition - vWorldPos);
+  vec3 refractDir = refract(viewDir,vNormal,1.0/1.5);
+  vec3 reflectDir = reflect(viewDir,vNormal);
+
+  vec3 reflection = textureCube(envMap,reflectDir).rgb * 0.7;
+  vec3 refraction = textureCube(envMap,refractDir).rgb;
+
+  float fresnel = pow(1.0 - dot(viewDir,vNormal),2.0) * 0.6;
+
+  vec3 color = mix(refraction, reflection, fresnel);
+
+  float edge = pow(1.0-abs(dot(viewDir,vNormal)),3.0);
+  color += edge*vec3(0.05,0.1,0.2);
+
+  gl_FragColor = vec4(color,0.9);
+ }
+ `,
+ transparent:true
+});
+
+const cube = new THREE.Mesh(
+ new THREE.BoxGeometry(1.5,1.5,1.5),
+ glassMaterial
+);
+scene.add(cube);
+
+// Particles (subtle)
+const particleCount = 3000;
+const positions = new Float32Array(particleCount*3);
+for(let i=0;i<particleCount;i++){
+ positions[i*3+0]=(Math.random()-0.5)*10;
+ positions[i*3+1]=(Math.random()-0.5)*10;
+ positions[i*3+2]=(Math.random()-0.5)*10;
+}
+const particleGeo = new THREE.BufferGeometry();
+particleGeo.setAttribute('position',new THREE.BufferAttribute(positions,3));
+
+const particleMat = new THREE.PointsMaterial({
+ color:0x88ccff,
+ size:0.02,
+ transparent:true,
+ opacity:0.4
+});
+scene.add(new THREE.Points(particleGeo,particleMat));
+
+// Postprocessing
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene,camera));
+
+const bloom = new UnrealBloomPass(
+ new THREE.Vector2(innerWidth,innerHeight),
+ 0.6, 0.2, 0.9 // softer bloom
+);
+composer.addPass(bloom);
+
+composer.addPass(new FilmPass(0.15,0.2,0,false));
+
+// Subtle chromatic aberration
+const chromaShader = {
+ uniforms:{
+  tDiffuse:{value:null},
+  amount:{value:0.0006}
+ },
+ vertexShader:`
+ varying vec2 vUv;
+ void main(){
+  vUv = uv;
+  gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0);
+ }
+ `,
+ fragmentShader:`
+ uniform sampler2D tDiffuse;
+ uniform float amount;
+ varying vec2 vUv;
+ void main(){
+  vec2 offset = amount*vec2(0.5,0.5);
+  float r = texture2D(tDiffuse,vUv+offset).r;
+  float g = texture2D(tDiffuse,vUv).g;
+  float b = texture2D(tDiffuse,vUv-offset).b;
+  gl_FragColor = vec4(r,g,b,1.0);
+ }
+ `
+};
+composer.addPass(new ShaderPass(chromaShader));
+
+addEventListener('resize',()=>{
+ camera.aspect = innerWidth/innerHeight;
+ camera.updateProjectionMatrix();
+ renderer.setSize(innerWidth,innerHeight);
+ composer.setSize(innerWidth,innerHeight);
+});
+
+// Animate
+let clock = new THREE.Clock();
+function animate(){
+ requestAnimationFrame(animate);
+ let t = clock.getElapsedTime();
+
+ cube.position.y = Math.sin(t)*0.15;
+
+ if(hdr) hdr.rotation = t*0.05;
+
+ glassMaterial.uniforms.envMap.value = scene.environment;
+
+ controls.update();
+ composer.render();
+}
+animate();
+
+</script>
+</body>
+</html>
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Ultra Cinematic Cube (Balanced)</title>
+<style>
+body{margin:0;overflow:hidden;background:black;}
+canvas{display:block;}
+</style>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+
+<body>
+<script type="module">
+
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { FilmPass } from 'three/addons/postprocessing/FilmPass.js';
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.1,100);
+camera.position.set(0,0,4);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(devicePixelRatio);
+renderer.shadowMap.enabled = true;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.85; // reduced brightness
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera,renderer.domElement);
+controls.enableDamping = true;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.5;
+
+// HDR
+let hdr;
+new RGBELoader().load('./studio.hdr',t=>{
+ t.mapping = THREE.EquirectangularReflectionMapping;
+ hdr = t;
+ scene.environment = t;
+ scene.background = t;
+});
+
+// Texture
+const texture = new THREE.TextureLoader().load('./cube.jpg');
+
+// Balanced Glass Shader
+const glassMaterial = new THREE.ShaderMaterial({
+ uniforms:{
+  envMap:{value:null},
+  map:{value:texture},
+  time:{value:0}
+ },
+ vertexShader:`
+ varying vec3 vNormal;
+ varying vec3 vWorldPos;
+ void main(){
+  vNormal = normalize(normalMatrix*normal);
+  vec4 worldPos = modelMatrix*vec4(position,1.0);
+  vWorldPos = worldPos.xyz;
+  gl_Position = projectionMatrix*viewMatrix*worldPos;
+ }
+ `,
+ fragmentShader:`
+ uniform sampler2D map;
+ uniform samplerCube envMap;
+ varying vec3 vNormal;
+ varying vec3 vWorldPos;
+
+ void main(){
+  vec3 viewDir = normalize(cameraPosition - vWorldPos);
+  vec3 refractDir = refract(viewDir,vNormal,1.0/1.5);
+  vec3 reflectDir = reflect(viewDir,vNormal);
+
+  vec3 reflection = textureCube(envMap,reflectDir).rgb * 0.7;
+  vec3 refraction = textureCube(envMap,refractDir).rgb;
+
+  float fresnel = pow(1.0 - dot(viewDir,vNormal),2.0) * 0.6;
+
+  vec3 color = mix(refraction, reflection, fresnel);
+
+  float edge = pow(1.0-abs(dot(viewDir,vNormal)),3.0);
+  color += edge*vec3(0.05,0.1,0.2);
+
+  gl_FragColor = vec4(color,0.9);
+ }
+ `,
+ transparent:true
+});
+
+const cube = new THREE.Mesh(
+ new THREE.BoxGeometry(1.5,1.5,1.5),
+ glassMaterial
+);
+scene.add(cube);
+
+// Particles (subtle)
+const particleCount = 3000;
+const positions = new Float32Array(particleCount*3);
+for(let i=0;i<particleCount;i++){
+ positions[i*3+0]=(Math.random()-0.5)*10;
+ positions[i*3+1]=(Math.random()-0.5)*10;
+ positions[i*3+2]=(Math.random()-0.5)*10;
+}
+const particleGeo = new THREE.BufferGeometry();
+particleGeo.setAttribute('position',new THREE.BufferAttribute(positions,3));
+
+const particleMat = new THREE.PointsMaterial({
+ color:0x88ccff,
+ size:0.02,
+ transparent:true,
+ opacity:0.4
+});
+scene.add(new THREE.Points(particleGeo,particleMat));
+
+// Postprocessing
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene,camera));
+
+const bloom = new UnrealBloomPass(
+ new THREE.Vector2(innerWidth,innerHeight),
+ 0.6, 0.2, 0.9 // softer bloom
+);
+composer.addPass(bloom);
+
+composer.addPass(new FilmPass(0.15,0.2,0,false));
+
+// Subtle chromatic aberration
+const chromaShader = {
+ uniforms:{
+  tDiffuse:{value:null},
+  amount:{value:0.0006}
+ },
+ vertexShader:`
+ varying vec2 vUv;
+ void main(){
+  vUv = uv;
+  gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0);
+ }
+ `,
+ fragmentShader:`
+ uniform sampler2D tDiffuse;
+ uniform float amount;
+ varying vec2 vUv;
+ void main(){
+  vec2 offset = amount*vec2(0.5,0.5);
+  float r = texture2D(tDiffuse,vUv+offset).r;
+  float g = texture2D(tDiffuse,vUv).g;
+  float b = texture2D(tDiffuse,vUv-offset).b;
+  gl_FragColor = vec4(r,g,b,1.0);
+ }
+ `
+};
+composer.addPass(new ShaderPass(chromaShader));
+
+addEventListener('resize',()=>{
+ camera.aspect = innerWidth/innerHeight;
+ camera.updateProjectionMatrix();
+ renderer.setSize(innerWidth,innerHeight);
+ composer.setSize(innerWidth,innerHeight);
+});
+
+// Animate
+let clock = new THREE.Clock();
+function animate(){
+ requestAnimationFrame(animate);
+ let t = clock.getElapsedTime();
+
+ cube.position.y = Math.sin(t)*0.15;
+
+ if(hdr) hdr.rotation = t*0.05;
+
+ glassMaterial.uniforms.envMap.value = scene.environment;
 
  controls.update();
  composer.render();
