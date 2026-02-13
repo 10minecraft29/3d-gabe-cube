@@ -1,13 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Cinematic Glass Cube</title>
-
+<meta charset="UTF-8">
+<title>Ultra Cinematic Cube</title>
 <style>
-  body { margin:0; overflow:hidden; background:black; }
-  canvas { display:block; }
+body{margin:0;overflow:hidden;background:black;}
+canvas{display:block;}
 </style>
 
 <script type="importmap">
@@ -21,39 +19,45 @@
 </head>
 
 <body>
-
 <script type="module">
+
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { FilmPass } from 'three/addons/postprocessing/FilmPass.js';
 
 const scene = new THREE.Scene();
-
-const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 100);
+const camera = new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.1,100);
 camera.position.set(0,0,4);
 
-const renderer = new THREE.WebGLRenderer({ antialias:true });
-renderer.setSize(innerWidth, innerHeight);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
 renderer.setPixelRatio(devicePixelRatio);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.2;
-renderer.physicallyCorrectLights = true;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 
-// Orbit (auto cinematic mode)
-const controls = new OrbitControls(camera, renderer.domElement);
+const controls = new OrbitControls(camera,renderer.domElement);
 controls.enableDamping = true;
 controls.autoRotate = true;
 controls.autoRotateSpeed = 0.5;
 
 // HDR
-let hdrTexture;
-new RGBELoader().load('./studio.hdr', tex=>{
-  tex.mapping = THREE.EquirectangularReflectionMapping;
+let hdr;
+new RGBELoader().load('./studio.hdr',t=>{
+ t.mapping = THREE.EquirectangularReflectionMapping;
+ hdr = t;
+ scene.environment = t;
+ scene.background = t;
+});
+
+// Light source for god rays
+const sun = new THREE.Mesh(
+ new THREE.SphereGeometry(0.2,32,32),
+ new THREE.MeshBasicMaterial({color:0xffffff})
+);
