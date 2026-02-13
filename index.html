@@ -64,13 +64,15 @@ const texture = new THREE.TextureLoader().load('./cube.jpg');
 const glassMaterial = new THREE.ShaderMaterial({
  uniforms:{
   envMap:{value:null},
-  map:{value:texture},
-  time:{value:0}
+  map:{value:texture}
  },
  vertexShader:`
  varying vec3 vNormal;
  varying vec3 vWorldPos;
+ varying vec2 vUv;
+
  void main(){
+  vUv = uv;
   vNormal = normalize(normalMatrix*normal);
   vec4 worldPos = modelMatrix*vec4(position,1.0);
   vWorldPos = worldPos.xyz;
@@ -80,29 +82,33 @@ const glassMaterial = new THREE.ShaderMaterial({
  fragmentShader:`
  uniform sampler2D map;
  uniform samplerCube envMap;
+
  varying vec3 vNormal;
  varying vec3 vWorldPos;
+ varying vec2 vUv;
 
  void main(){
+
   vec3 viewDir = normalize(cameraPosition - vWorldPos);
-  vec3 refractDir = refract(viewDir,vNormal,1.0/1.5);
-  vec3 reflectDir = reflect(viewDir,vNormal);
+  vec3 reflectDir = reflect(viewDir, normalize(vNormal));
 
-  vec3 reflection = textureCube(envMap,reflectDir).rgb * 0.7;
-  vec3 refraction = textureCube(envMap,refractDir).rgb;
+  // Base image (dominant)
+  vec3 baseColor = texture2D(map, vUv).rgb;
 
-  float fresnel = pow(1.0 - dot(viewDir,vNormal),2.0) * 0.6;
+  // Softer reflection
+  vec3 reflection = textureCube(envMap, reflectDir).rgb * 0.25;
 
-  vec3 color = mix(refraction, reflection, fresnel);
+  // Light fresnel (subtle)
+  float fresnel = pow(1.0 - max(dot(viewDir, normalize(vNormal)), 0.0), 2.0) * 0.4;
 
-  float edge = pow(1.0-abs(dot(viewDir,vNormal)),3.0);
-  color += edge*vec3(0.05,0.1,0.2);
+  vec3 finalColor = baseColor + reflection * fresnel;
 
-  gl_FragColor = vec4(color,0.9);
+  gl_FragColor = vec4(finalColor, 0.95);
  }
  `,
  transparent:true
 });
+
 
 const cube = new THREE.Mesh(
  new THREE.BoxGeometry(1.5,1.5,1.5),
