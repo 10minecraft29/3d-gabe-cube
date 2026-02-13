@@ -3,15 +3,11 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>HDR Glass Cube</title>
+<title>Cinematic Glass Cube</title>
 
 <style>
-  body {
-    margin: 0;
-    overflow: hidden;
-    background: black;
-  }
-  canvas { display: block; }
+  body { margin:0; overflow:hidden; background:black; }
+  canvas { display:block; }
 </style>
 
 <script type="importmap">
@@ -30,77 +26,34 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
 
 const scene = new THREE.Scene();
 
-// Camera
-const camera = new THREE.PerspectiveCamera(
-  75,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  1000
-);
-camera.position.set(0, 0, 3);
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 100);
+camera.position.set(0,0,4);
 
-// Renderer
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(window.devicePixelRatio);
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(devicePixelRatio);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.2;
 renderer.physicallyCorrectLights = true;
 document.body.appendChild(renderer.domElement);
 
-// Controls
+// Orbit (auto cinematic mode)
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.5;
 
-// Load HDR Environment
-new RGBELoader()
-  .load('./studio.hdr', function (hdrTexture) {
-    hdrTexture.mapping = THREE.EquirectangularReflectionMapping;
-    scene.environment = hdrTexture;
-    scene.background = hdrTexture; // remove if you want black background
-  });
-
-// Load Image Texture
-const textureLoader = new THREE.TextureLoader();
-const texture = textureLoader.load('./cube.jpg');
-
-// Premium Glass Material
-const material = new THREE.MeshPhysicalMaterial({
-  map: texture,
-  roughness: 0.05,
-  metalness: 0,
-  transmission: 1,
-  thickness: 1.5,
-  ior: 1.5,
-  envMapIntensity: 2,
-  clearcoat: 1,
-  clearcoatRoughness: 0
-});
-
-const geometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
-const cube = new THREE.Mesh(geometry, material);
-scene.add(cube);
-
-// Resize
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
-
-// Animate
-function animate() {
-  requestAnimationFrame(animate);
-  controls.update();
-  renderer.render(scene, camera);
-}
-animate();
-
-</script>
-
-</body>
-</html>
+// HDR
+let hdrTexture;
+new RGBELoader().load('./studio.hdr', tex=>{
+  tex.mapping = THREE.EquirectangularReflectionMapping;
