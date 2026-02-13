@@ -22,12 +22,23 @@
 
   canvas { display: block; }
 </style>
+
+<!-- Import Map (THIS FIXES EVERYTHING) -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
 </head>
 <body>
 
 <script type="module">
-import * as THREE from 'https://cdn.skypack.dev/three@0.160.0';
-import { OrbitControls } from 'https://cdn.skypack.dev/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const scene = new THREE.Scene();
 
@@ -60,14 +71,14 @@ const directional = new THREE.DirectionalLight(0xffffff, 2);
 directional.position.set(5, 5, 5);
 scene.add(directional);
 
-// Simple environment reflections
+// Reflection environment
 const pmrem = new THREE.PMREMGenerator(renderer);
 const envScene = new THREE.Scene();
 envScene.background = new THREE.Color(0x88aaff);
 const envMap = pmrem.fromScene(envScene).texture;
 scene.environment = envMap;
 
-// Load image texture
+// Texture
 const textureLoader = new THREE.TextureLoader();
 const texture = textureLoader.load('./cube.jpg');
 
@@ -107,5 +118,6 @@ function animate() {
 animate();
 
 </script>
+
 </body>
 </html>
