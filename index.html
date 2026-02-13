@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Gabe Cube</title>
+<title>Gabe Cube (skybox + stronger reflections)</title>
 <style>
 body{margin:0;overflow:hidden;background:black;}
 canvas{display:block;}
@@ -23,7 +23,6 @@ canvas{display:block;}
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
@@ -39,7 +38,6 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(devicePixelRatio);
 renderer.shadowMap.enabled = true;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-// Significantly lower default exposure (tweak this)
 renderer.toneMappingExposure = 0.12;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
@@ -49,32 +47,45 @@ controls.enableDamping = true;
 controls.autoRotate = true;
 controls.autoRotateSpeed = 0.5;
 
-// PMREM generator for proper environment map (avoids very bright raw HDR background)
+// PMREM generator for proper environment map (avoids very bright raw cubemap)
 const pmrem = new THREE.PMREMGenerator(renderer);
-pmrem.compileEquirectangularShader();
+pmrem.compileCubemapShader();
 
-let hdrEnv = null;
-new RGBELoader().load('./studio.hdr', t => {
-  t.mapping = THREE.EquirectangularReflectionMapping;
-  // use PMREM to get prefiltered env map
-  const envMap = pmrem.fromEquirectangular(t).texture;
-  hdrEnv = envMap;
-  scene.environment = envMap;
-  // Don't set the scene background to the raw hdr (it looks very bright). Keep black background:
-  scene.background = null;
-  t.dispose();
-  pmrem.dispose();
-});
+let envMapTexture = null;
 
-// Texture
+// SKYBOX (cube) loader — put your 6 images in ./skybox/ named px,nx,py,ny,pz,nz
+const cubeLoader = new THREE.CubeTextureLoader().setPath('./skybox/');
+cubeLoader.load(
+  // order: posX, negX, posY, negY, posZ, negZ
+  ['px.jpg','nx.jpg','py.jpg','ny.jpg','pz.jpg','nz.jpg'],
+  (cubeTex) => {
+    // use the raw cube texture for background
+    scene.background = cubeTex;
+    // create a PMREM-filtered environment map for reflections
+    const filtered = pmrem.fromCubemap(cubeTex).texture;
+    envMapTexture = filtered;
+    scene.environment = filtered;
+    // Dispose the intermediate pmrem data later if needed (pmrem handles internal targets)
+  },
+  undefined,
+  (err) => {
+    console.warn('Skybox load failed or not present:', err);
+  }
+);
+
+// If you prefer an HDR equirectangular environment instead, comment the cube loader above and
+// use RGBELoader + pmrem.fromEquirectangular(hdrTexture) to create envMap.
+
+// Texture (base artwork on the cube)
 const texture = new THREE.TextureLoader().load('./cube.jpg');
 
-// Balanced Glass Shader with envIntensity uniform so reflections can be dialed down
+// Glass-like shader — now more reflective but still textured
 const glassMaterial = new THREE.ShaderMaterial({
   uniforms:{
     envMap:{value:null},
     map:{value:texture},
-    envIntensity:{value:0.25} // start low; reduce to make it darker
+    envIntensity:{value:0.85}, // higher => more reflective
+    baseFactor:{value:0.9}     // how dominant base texture is
   },
   vertexShader:`
     varying vec3 vNormal;
@@ -92,6 +103,7 @@ const glassMaterial = new THREE.ShaderMaterial({
     uniform sampler2D map;
     uniform samplerCube envMap;
     uniform float envIntensity;
+    uniform float baseFactor;
 
     varying vec3 vNormal;
     varying vec3 vWorldPos;
@@ -102,26 +114,26 @@ const glassMaterial = new THREE.ShaderMaterial({
       vec3 N = normalize(vNormal);
 
       // base color from texture
-      vec3 baseColor = texture2D(map, vUv).rgb * 0.85;
+      vec3 baseColor = texture2D(map, vUv).rgb * baseFactor;
 
-      // reflection from env map, scaled down by envIntensity
+      // reflection from env map, scaled by envIntensity
       vec3 reflectDir = reflect(-viewDir, N);
       vec3 reflection = textureCube(envMap, reflectDir).rgb * envIntensity;
 
-      // subtle fresnel to mix reflection on edges
-      float fresnel = pow(1.0 - max(dot(viewDir, N), 0.0), 2.0) * 0.35;
+      // fresnel to mix reflection more on grazing angles
+      float fresnel = pow(1.0 - max(dot(viewDir, N), 0.0), 3.0) * 0.9;
 
-      // combine: base dominates, reflection only gives subtle highlights
-      vec3 color = baseColor + reflection * fresnel;
+      // Combine base and reflection; reflection can dominate on edges/grazing angles
+      vec3 color = mix(baseColor, reflection, fresnel);
 
-      // gentle rim tint
-      float edge = pow(1.0 - abs(dot(viewDir, N)), 3.0);
-      color += edge * vec3(0.02, 0.04, 0.06);
+      // small rim tint to add depth
+      float edge = pow(1.0 - abs(dot(viewDir, N)), 4.0);
+      color += edge * vec3(0.03, 0.05, 0.08);
 
-      // final clamp to avoid overbright values
+      // tone down highlights to avoid clipping
       color = clamp(color, 0.0, 1.0);
 
-      gl_FragColor = vec4(color, 0.95);
+      gl_FragColor = vec4(color, 0.98);
     }
   `,
   transparent: true
@@ -148,7 +160,7 @@ const particleMat = new THREE.PointsMaterial({
   color: 0x88ccff,
   size: 0.02,
   transparent: true,
-  opacity: 0.2 // reduced opacity
+  opacity: 0.18
 });
 scene.add(new THREE.Points(particleGeo, particleMat));
 
@@ -156,20 +168,16 @@ scene.add(new THREE.Points(particleGeo, particleMat));
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 
-// Much softer bloom: lower strength and higher threshold
 const bloom = new UnrealBloomPass(
   new THREE.Vector2(innerWidth, innerHeight),
-  0.15, // strength (was 0.6)
-  0.2,  // radius
-  1.2   // threshold (was 0.9) — higher threshold reduces bloom
+  0.12, // slightly visible bloom
+  0.2,
+  1.4
 );
-// If you want no bloom at all, comment out the next line
 composer.addPass(bloom);
 
-// Subtle film/grain — lowered
-composer.addPass(new FilmPass(0.06, 0.06, 0, false));
+composer.addPass(new FilmPass(0.05, 0.05, 0, false));
 
-// Subtle chromatic aberration (reduced amount)
 const chromaShader = {
   uniforms:{
     tDiffuse:{value:null},
@@ -212,10 +220,11 @@ function animate(){
 
   cube.position.y = Math.sin(t) * 0.15;
 
-  if(hdrEnv) {
-    // rotate the environment slowly (optional)
-    hdrEnv.rotation = t * 0.02;
-    glassMaterial.uniforms.envMap.value = hdrEnv;
+  // rotate environment if available (gives moving reflections)
+  if(envMapTexture){
+    // envMapTexture is a WebGL texture — rotation on it isn't directly supported,
+    // but rotating the cube or using camera motion will change reflections.
+    glassMaterial.uniforms.envMap.value = envMapTexture;
   }
 
   controls.update();
