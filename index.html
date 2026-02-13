@@ -26,8 +26,8 @@
 <body>
 
 <script type="module">
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js';
-import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/controls/OrbitControls.js';
+import * as THREE from 'https://cdn.skypack.dev/three@0.160.0';
+import { OrbitControls } from 'https://cdn.skypack.dev/three@0.160.0/examples/jsm/controls/OrbitControls.js';
 
 const scene = new THREE.Scene();
 
@@ -60,14 +60,14 @@ const directional = new THREE.DirectionalLight(0xffffff, 2);
 directional.position.set(5, 5, 5);
 scene.add(directional);
 
-// Create simple reflection environment (NO HDR download)
+// Simple environment reflections
 const pmrem = new THREE.PMREMGenerator(renderer);
 const envScene = new THREE.Scene();
-envScene.background = new THREE.Color(0x8888ff);
+envScene.background = new THREE.Color(0x88aaff);
 const envMap = pmrem.fromScene(envScene).texture;
 scene.environment = envMap;
 
-// Load Image
+// Load image texture
 const textureLoader = new THREE.TextureLoader();
 const texture = textureLoader.load('./cube.jpg');
 
@@ -91,7 +91,7 @@ const geometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
 const cube = new THREE.Mesh(geometry, materials);
 scene.add(cube);
 
-// Resize fix
+// Resize
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
