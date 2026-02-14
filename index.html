@@ -40,9 +40,7 @@
 
 <script type="module">
 
-
 import * as THREE from "https://esm.sh/three@0.160.0";
-import { OrbitControls } from "https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js";
 import { RGBELoader } from "https://esm.sh/three@0.160.0/examples/jsm/loaders/RGBELoader.js";
 import { EffectComposer } from "https://esm.sh/three@0.160.0/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "https://esm.sh/three@0.160.0/examples/jsm/postprocessing/RenderPass.js";
@@ -58,97 +56,99 @@ const camera = new THREE.PerspectiveCamera(
 );
 camera.position.set(0, 2, 6);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  alpha: false
+});
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.85;
+renderer.toneMappingExposure = 0.7; // controlled brightness
 renderer.physicallyCorrectLights = true;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 
-// POST PROCESSING (Bloom)
+// POST PROCESSING (Subtle Bloom)
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 
 const bloom = new UnrealBloomPass(
   new THREE.Vector2(window.innerWidth, window.innerHeight),
-  0.6,   // strength
-  0.4,   // radius
-  0.85   // threshold
+  0.35,  // strength (subtle)
+  0.25,  // radius
+  0.9    // threshold (only bright highlights glow)
 );
 composer.addPass(bloom);
 
-// Controls
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableZoom = false;
-controls.enablePan = false;
-
-// Load texture
+// Load Image Texture
 const texture = new THREE.TextureLoader().load("cube.jpg");
+texture.colorSpace = THREE.SRGBColorSpace;
 
-// HDRI
+// Load LOCAL studio.hdr
 const pmrem = new THREE.PMREMGenerator(renderer);
 
-new RGBELoader().load(
-  "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/studio_small_09_1k.hdr",
-  (hdr) => {
-    const envMap = pmrem.fromEquirectangular(hdr).texture;
-    scene.environment = envMap;
-    scene.background = new THREE.Color(0x0e0e11);
-    hdr.dispose();
-    pmrem.dispose();
-  }
-);
+new RGBELoader().load("studio.hdr", (hdr) => {
 
-// TRUE GLASS + CLEARCOAT MATERIAL
-const glassMaterial = new THREE.MeshPhysicalMaterial({
+  const envMap = pmrem.fromEquirectangular(hdr).texture;
+  scene.environment = envMap;
+  scene.background = new THREE.Color(0x0e0e11);
+
+  hdr.dispose();
+  pmrem.dispose();
+});
+
+// GLASS MATERIAL (Balanced for visibility)
+const material = new THREE.MeshPhysicalMaterial({
   map: texture,
-  transmission: 1.0,     // glass
-  thickness: 1.2,
-  roughness: 0.15,
-  metalness: 0,
-  clearcoat: 1.0,        // lacquer layer
-  clearcoatRoughness: 0.05,
-  envMapIntensity: 1.2,
-  reflectivity: 1.0,
-  ior: 1.45
+
+  transmission: 0.6,        // not fully transparent
+  thickness: 0.8,
+
+  roughness: 0.25,          // keeps image sharp
+  metalness: 0.05,
+
+  clearcoat: 1.0,
+  clearcoatRoughness: 0.08,
+
+  envMapIntensity: 0.9,     // reflective but not overpowering
+
+  ior: 1.3,
+  reflectivity: 0.8
 });
 
 const cube = new THREE.Mesh(
   new THREE.BoxGeometry(2,2,2),
-  glassMaterial
+  material
 );
 scene.add(cube);
 
-// SOFTBOX RIM LIGHTS
-const light1 = new THREE.RectAreaLight(0xffffff, 8, 4, 6);
-light1.position.set(5, 4, 5);
-light1.lookAt(0,0,0);
+// Soft studio rim lights
+const light1 = new THREE.DirectionalLight(0xffffff, 3);
+light1.position.set(5, 6, 5);
 scene.add(light1);
 
-const light2 = new THREE.RectAreaLight(0xffffff, 6, 4, 6);
-light2.position.set(-5, 3, -5);
-light2.lookAt(0,0,0);
+const light2 = new THREE.DirectionalLight(0xffffff, 2);
+light2.position.set(-5, 4, -4);
 scene.add(light2);
 
-// Floating animation vars
-let clock = new THREE.Clock();
+// Floating + Cinematic Animation
+const clock = new THREE.Clock();
 
 function animate() {
   requestAnimationFrame(animate);
 
   const t = clock.getElapsedTime();
 
-  // floating motion
-  cube.position.y = Math.sin(t * 1.5) * 0.3;
+  // Floating motion
+  cube.position.y = Math.sin(t * 1.5) * 0.25;
 
-  // slow cinematic rotation
-  cube.rotation.y += 0.003;
-  cube.rotation.x = Math.sin(t * 0.5) * 0.1;
+  // Slow rotation
+  cube.rotation.y += 0.002;
+  cube.rotation.x = Math.sin(t * 0.5) * 0.05;
 
-  // cinematic camera orbit
-  camera.position.x = Math.sin(t * 0.3) * 6;
-  camera.position.z = Math.cos(t * 0.3) * 6;
-  camera.lookAt(0,0,0);
+  // Cinematic camera orbit
+  camera.position.x = Math.sin(t * 0.25) * 6;
+  camera.position.z = Math.cos(t * 0.25) * 6;
+  camera.lookAt(0, 0, 0);
 
   composer.render();
 }
