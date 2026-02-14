@@ -40,7 +40,7 @@ renderer.setPixelRatio(devicePixelRatio);
 renderer.shadowMap.enabled = true;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 // conservative starting exposure; lower this to darken the whole scene if needed
-renderer.toneMappingExposure = 0.08;
+renderer.toneMappingExposure = 0.6;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 
@@ -179,7 +179,7 @@ function animate(){
   // ensure material uses the env map when it becomes available
   if (envMapTexture && cubeMaterial.envMap !== envMapTexture) {
     cubeMaterial.envMap = envMapTexture;
-    cubeMaterial.envMapIntensity = 1.25;
+    cubeMaterial.envMapIntensity = 0.35;
     cubeMaterial.needsUpdate = true;
   }
 
@@ -255,7 +255,7 @@ new RGBELoader().load('./studio.hdr', (hdrEquirect) => {
 
   // Use the filtered texture for environment reflections and background
   scene.environment = filtered;
-  scene.background = filtered;
+  scene.background = new THREE.Color(0x0e0e11);
 
   // Clean up the original HDR and pmrem generator
   hdrEquirect.dispose();
@@ -278,8 +278,8 @@ const texture = new THREE.TextureLoader().load('./cube.jpg');
 // MeshStandardMaterial — opaque and reflective
 const cubeMaterial = new THREE.MeshStandardMaterial({
   map: texture,
-  metalness: 0.88,      // higher -> more reflective look
-  roughness: 0.12,      // lower -> sharper reflections
+  metalness: 0.25,      // higher -> more reflective look
+  roughness: 0.35,      // lower -> sharper reflections
   // envMap & envMapIntensity assigned when HDR loads
   // transparent: false (default) -> opaque
   toneMapped: true
