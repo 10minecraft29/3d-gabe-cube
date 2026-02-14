@@ -63,7 +63,7 @@ new RGBELoader().load('./studio.hdr', (hdrEquirect) => {
 
   // Use the filtered texture for environment reflections and background
   scene.environment = filtered;
-  scene.background = new THREE.Color(0x0e0e11);
+  scene.background = filtered;
 
   // Clean up the original HDR and pmrem generator
   hdrEquirect.dispose();
@@ -255,7 +255,7 @@ new RGBELoader().load('./studio.hdr', (hdrEquirect) => {
 
   // Use the filtered texture for environment reflections and background
   scene.environment = filtered;
-  scene.background = filtered;
+  scene.background = new THREE.Color(0x0e0e11);
 
   // Clean up the original HDR and pmrem generator
   hdrEquirect.dispose();
