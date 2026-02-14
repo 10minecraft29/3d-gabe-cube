@@ -41,9 +41,9 @@
 <script type="module">
 
 
-import * as THREE from "https://cdn.skypack.dev/three@0.160.0";
-import { OrbitControls } from "https://cdn.skypack.dev/three@0.160.0/examples/jsm/controls/OrbitControls.js";
-import { RGBELoader } from "https://cdn.skypack.dev/three@0.160.0/examples/jsm/loaders/RGBELoader.js";
+import * as THREE from "https://esm.sh/three@0.160.0";
+import { OrbitControls } from "https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js";
+import { RGBELoader } from "https://esm.sh/three@0.160.0/examples/jsm/loaders/RGBELoader.js";
 
 const scene = new THREE.Scene();
 
@@ -62,26 +62,28 @@ renderer.toneMappingExposure = 0.6;
 renderer.shadowMap.enabled = true;
 document.body.appendChild(renderer.domElement);
 
+// Controls
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 
-const textureLoader = new THREE.TextureLoader();
-const texture = textureLoader.load("cube.jpg");
+// Texture
+const texture = new THREE.TextureLoader().load("cube.jpg");
 
+// HDR Environment
 const pmrem = new THREE.PMREMGenerator(renderer);
 
-new RGBELoader()
-  .setPath("https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/")
-  .load("studio_small_09_1k.hdr", (hdr) => {
-
+new RGBELoader().load(
+  "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/studio_small_09_1k.hdr",
+  (hdr) => {
     const envMap = pmrem.fromEquirectangular(hdr).texture;
     scene.environment = envMap;
     scene.background = new THREE.Color(0x0e0e11);
-
     hdr.dispose();
     pmrem.dispose();
-  });
+  }
+);
 
+// Materials
 const normalMaterial = new THREE.MeshStandardMaterial({
   map: texture,
   metalness: 0.05,
@@ -96,12 +98,14 @@ const glossyMaterial = new THREE.MeshStandardMaterial({
   envMapIntensity: 0.35
 });
 
+// Cube
 const cube = new THREE.Mesh(
   new THREE.BoxGeometry(2,2,2),
   normalMaterial
 );
 scene.add(cube);
 
+// Toggle button
 let isGlossy = false;
 const button = document.getElementById("reflectToggle");
 
@@ -111,12 +115,14 @@ button.addEventListener("click", () => {
   button.textContent = isGlossy ? "Disable Gloss" : "Enable Gloss";
 });
 
+// Resize
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
+// Animation
 function animate() {
   requestAnimationFrame(animate);
   cube.rotation.y += 0.003;
