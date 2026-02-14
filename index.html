@@ -44,6 +44,9 @@
 import * as THREE from "https://esm.sh/three@0.160.0";
 import { OrbitControls } from "https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js";
 import { RGBELoader } from "https://esm.sh/three@0.160.0/examples/jsm/loaders/RGBELoader.js";
+import { EffectComposer } from "https://esm.sh/three@0.160.0/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "https://esm.sh/three@0.160.0/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "https://esm.sh/three@0.160.0/examples/jsm/postprocessing/UnrealBloomPass.js";
 
 const scene = new THREE.Scene();
 
@@ -53,23 +56,36 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   100
 );
-camera.position.set(4, 3, 6);
+camera.position.set(0, 2, 6);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.6;
-renderer.shadowMap.enabled = true;
+renderer.toneMappingExposure = 0.85;
+renderer.physicallyCorrectLights = true;
 document.body.appendChild(renderer.domElement);
+
+// POST PROCESSING (Bloom)
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+
+const bloom = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth, window.innerHeight),
+  0.6,   // strength
+  0.4,   // radius
+  0.85   // threshold
+);
+composer.addPass(bloom);
 
 // Controls
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
+controls.enableZoom = false;
+controls.enablePan = false;
 
-// Texture
+// Load texture
 const texture = new THREE.TextureLoader().load("cube.jpg");
 
-// HDR Environment
+// HDRI
 const pmrem = new THREE.PMREMGenerator(renderer);
 
 new RGBELoader().load(
@@ -83,55 +99,68 @@ new RGBELoader().load(
   }
 );
 
-// Materials
-const normalMaterial = new THREE.MeshStandardMaterial({
+// TRUE GLASS + CLEARCOAT MATERIAL
+const glassMaterial = new THREE.MeshPhysicalMaterial({
   map: texture,
-  metalness: 0.05,
-  roughness: 0.9,
-  envMapIntensity: 0.1
+  transmission: 1.0,     // glass
+  thickness: 1.2,
+  roughness: 0.15,
+  metalness: 0,
+  clearcoat: 1.0,        // lacquer layer
+  clearcoatRoughness: 0.05,
+  envMapIntensity: 1.2,
+  reflectivity: 1.0,
+  ior: 1.45
 });
 
-const glossyMaterial = new THREE.MeshStandardMaterial({
-  map: texture,
-  metalness: 0.25,
-  roughness: 0.35,
-  envMapIntensity: 0.35
-});
-
-// Cube
 const cube = new THREE.Mesh(
   new THREE.BoxGeometry(2,2,2),
-  normalMaterial
+  glassMaterial
 );
 scene.add(cube);
 
-// Toggle button
-let isGlossy = false;
-const button = document.getElementById("reflectToggle");
+// SOFTBOX RIM LIGHTS
+const light1 = new THREE.RectAreaLight(0xffffff, 8, 4, 6);
+light1.position.set(5, 4, 5);
+light1.lookAt(0,0,0);
+scene.add(light1);
 
-button.addEventListener("click", () => {
-  isGlossy = !isGlossy;
-  cube.material = isGlossy ? glossyMaterial : normalMaterial;
-  button.textContent = isGlossy ? "Disable Gloss" : "Enable Gloss";
-});
+const light2 = new THREE.RectAreaLight(0xffffff, 6, 4, 6);
+light2.position.set(-5, 3, -5);
+light2.lookAt(0,0,0);
+scene.add(light2);
 
-// Resize
+// Floating animation vars
+let clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const t = clock.getElapsedTime();
+
+  // floating motion
+  cube.position.y = Math.sin(t * 1.5) * 0.3;
+
+  // slow cinematic rotation
+  cube.rotation.y += 0.003;
+  cube.rotation.x = Math.sin(t * 0.5) * 0.1;
+
+  // cinematic camera orbit
+  camera.position.x = Math.sin(t * 0.3) * 6;
+  camera.position.z = Math.cos(t * 0.3) * 6;
+  camera.lookAt(0,0,0);
+
+  composer.render();
+}
+
+animate();
+
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
 });
-
-// Animation
-function animate() {
-  requestAnimationFrame(animate);
-  cube.rotation.y += 0.003;
-  cube.rotation.x += 0.0015;
-  controls.update();
-  renderer.render(scene, camera);
-}
-
-animate();
   
 </script>
 </body>
