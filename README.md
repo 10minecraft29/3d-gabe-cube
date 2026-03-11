@@ -1,5 +1,5 @@
 ## Description
-This is a 3D Gabe Cube that you can move around in any direction that uses studio.hdr for lighting.
+This is a 3D Gabe Cube that you can move around in any direction.
 The Gabe Cube is fairly resource intensive for a web page and may run poorly or crash on lower end/older computers, phones, or tablets
 ## Minimum Specs
   - A Modern Web Browser
