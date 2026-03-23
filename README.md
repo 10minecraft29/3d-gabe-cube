@@ -9,6 +9,6 @@ The Gabe Cube is fairly resource intensive for a web page and may run poorly or 
 ## Recomended Specs
   - A modern web browser
   - A modern dual core CPU or greater
-  - A GPU that supports OpenGL 2.0
+  - A GPU that supports OpenGL ES 2.0
   - 1 GB VRAM or greater
   - 8 GB of system memory or greater
